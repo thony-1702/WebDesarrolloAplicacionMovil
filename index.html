@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documentación Android</title>
+    <link rel="stylesheet" href="style.css">
+    </head>
+<body>
+
+    <header class="header">
+        <h1>Guía de Documentación Técnica sobre Android</h1>
+        <p>Conceptos clave para el desarrollo de aplicaciones móviles con Kotlin.</p>
+    </header>
+
+    <nav class="navbar">
+        <ul>
+            <li><a href="#autenticacion">Autenticación</a></li>
+            <li><a href="#database">Base de Datos en Tiempo Real</a></li>
+            <li><a href="#componentes">Componentes Esenciales</a></li>
+            <li><a href="#listas">Listas y Navegación</a></li>
+        </ul>
+    </nav>
+
+    <main class="container">
+
+        <section id="autenticacion" class="section">
+            <h2>Autenticación</h2>
+            <p>La autenticación es el proceso de verificar la identidad de un usuario para otorgarle acceso a un sistema o aplicación.</p>
+
+            <h3>Autenticación con Google</h3>
+            <p>La autenticación con Google permite a los usuarios iniciar sesión en tu aplicación usando su cuenta de Google. Esto es conveniente porque no tienen que crear una cuenta nueva ni recordar otra contraseña. El proceso principal consiste en dos pasos:</p>
+
+            <ol>
+                <li><strong>Obtener un cliente de Google Sign-In</strong>: Este cliente es necesario para manejar la comunicación con los servicios de Google. El código <code>GoogleSignIn.getClient(this, gso)</code> crea una instancia de este cliente. El objeto <code>gso</code> (Google Sign-In Options) define el alcance de los permisos que la app solicita a la cuenta de Google del usuario.</li>
+                <li><strong>Lanzar la interfaz de inicio de sesión</strong>: La línea <code>startActivityForResult(signInIntent, RC_SIGN_IN)</code> inicia la actividad de Google que muestra una ventana emergente para que el usuario elija su cuenta. Cuando el usuario selecciona una cuenta y concede los permisos, el resultado se devuelve a tu aplicación en el método <code>onActivityResult</code>, donde se maneja la finalización de la autenticación. </li>
+            </ol>
+            
+            <pre><code>// Ejemplo de código para iniciar sesión con Google
+// (Se requieren librerías de Firebase y Google Sign-In)
+private fun signInWithGoogle() {
+    val googleSignInClient = GoogleSignIn.getClient(this, gso)
+    val signInIntent = googleSignInClient.signInIntent
+    startActivityForResult(signInIntent, RC_SIGN_IN)
+}</code></pre>
+
+            <h3>Autenticación con Email y Contraseña (Firebase)</h3>
+            <p>Firebase Authentication ofrece una solución completa para manejar la autenticación de usuarios. El siguiente ejemplo se enfoca en el proceso de registro, que es el primer paso para un usuario nuevo.</p>
+            <p>El código <code>FirebaseAuth.getInstance().createUserWithEmailAndPassword(email, password)</code> es el método clave. Aquí está el desglose de lo que hace:</p>
+            <ul>
+                <li><strong><code>FirebaseAuth.getInstance()</code></strong>: Obtiene la instancia compartida de la clase <code>FirebaseAuth</code>. Es el punto de entrada para todas las operaciones de autenticación.</li>
+                <li><strong><code>.createUserWithEmailAndPassword(email, password)</code></strong>: Este método toma un correo electrónico y una contraseña y los envía a los servidores de Firebase para crear una nueva cuenta de usuario.</li>
+                <li><strong><code>.addOnCompleteListener(this) { task -> ... }</code></strong>: Este es un <strong>listener</strong> que se ejecuta cuando la operación de creación de usuario se completa, ya sea con éxito o con un error. La variable <code>task</code> contiene el resultado de la operación.</li>
+                <li><strong><code>if (task.isSuccessful)</code></strong>: Esta condición verifica si la operación se completó sin errores. Si es <code>true</code>, la cuenta se creó correctamente y el usuario está autenticado. Si es <code>false</code>, hubo un error (por ejemplo, el email ya está en uso o la contraseña es demasiado débil), y se puede mostrar un mensaje de error al usuario.</li>
+            </ul>
+            <p>Estos ejemplos ilustran cómo Firebase simplifica el proceso de autenticación, permitiendo a los desarrolladores enfocarse en otras funcionalidades de la aplicación en lugar de en la gestión de la seguridad de las cuentas de usuario.</p>
+            <pre><code>// Ejemplo de código para registrar un usuario
+FirebaseAuth.getInstance().createUserWithEmailAndPassword(email, password)
+    .addOnCompleteListener(this) { task ->
+        if (task.isSuccessful) {
+            // Éxito: La cuenta se creó y el usuario está autenticado.
+        } else {
+            // Fallo: Ocurrió un error.
+        }
+    }</code></pre>
+        </section>
+        
+        <hr>
+
+        <section id="database" class="section">
+            <h2>Base de Datos en Tiempo Real (Realtime Database)</h2>
+            <p>Firebase Realtime Database es una base de datos NoSQL alojada en la nube que sincroniza los datos en tiempo real entre todos los clientes conectados. A continuación se explica el modelo CRUD con ejemplos de código mejorados que manejan la asincronía y los errores.</p>
+
+            <h3>1. Crear (Create)</h3>
+            <p>La operación de creación se realiza con el método <code>setValue()</code>. La versión mejorada encapsula la lógica en una función y maneja la finalización de la tarea para confirmar si la operación fue exitosa.</p>
+            <pre><code>//Encapsulación y manejo de finalización
+fun createUser(userId: String, user: User) {
+    val database = Firebase.database.reference
+    database.child("users").child(userId).setValue(user)
+        .addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                // Éxito: Registro creado correctamente
+                Log.d("FirebaseDB", "Usuario creado con éxito")
+            } else {
+                // Fallo: Ocurrió un error al crear el registro
+                Log.e("FirebaseDB", "Error al crear usuario", task.exception)
+            }
+        }
+}</code></pre>
+
+            <h3>2. Leer (Read)</h3>
+            <p>Para leer datos, utilizas el método <code>get()</code>. Esta versión mejorada valida que el dato exista en la base de datos antes de intentar convertirlo a un objeto, lo que previene errores y hace el código más robusto.</p>
+            <pre><code>//Manejo de fallos y validación de datos
+fun readUser(userId: String) {
+    val database = Firebase.database.reference
+    database.child("users").child(userId).get()
+        .addOnSuccessListener { snapshot ->
+            if (snapshot.exists()) {
+                val user = snapshot.getValue(User::class.java)
+                Log.d("FirebaseDB", "Datos del usuario: $user")
+            } else {
+                Log.d("FirebaseDB", "El usuario no existe en la base de datos")
+            }
+        }
+        .addOnFailureListener { exception ->
+            Log.e("FirebaseDB", "Error al leer usuario", exception)
+        }
+}</code></pre>
+            
+            <h3>3. Actualizar (Update)</h3>
+            <p>Para actualizar campos específicos sin sobrescribir el nodo completo, se utiliza el método <code>updateChildren()</code> con un `Map`. Esto permite una actualización parcial, lo cual es ideal para cambiar solo uno o dos valores.</p>
+            <pre><code>//Usando updateChildren() para actualizaciones parciales
+fun updateUserEmail(userId: String, newEmail: String) {
+    val database = Firebase.database.reference
+    val userUpdates = mapOf(
+        "email" to newEmail
+    )
+    database.child("users").child(userId).updateChildren(userUpdates)
+        .addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                Log.d("FirebaseDB", "Email del usuario actualizado")
+            } else {
+                Log.e("FirebaseDB", "Error al actualizar email", task.exception)
+            }
+        }
+}</code></pre>
+            
+            <h3>4. Eliminar (Delete)</h3>
+            <p>Para eliminar datos, simplemente llamas al método <code>removeValue()</code>. Esta versión mejorada incluye un listener para confirmar que la operación se completó correctamente, lo que es vital para la fiabilidad de tu aplicación.</p>
+            <pre><code>//Verificación de la finalización de la tarea
+fun deleteUser(userId: String) {
+    val database = Firebase.database.reference
+    database.child("users").child(userId).removeValue()
+        .addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                Log.d("FirebaseDB", "Usuario eliminado con éxito")
+            } else {
+                Log.e("FirebaseDB", "Error al eliminar usuario", task.exception)
+            }
+        }
+}</code></pre>
+            
+            <h3>Estructura de los datos y nodos</h3>
+            <p>Los datos en Firebase se organizan en nodos con una estructura de árbol JSON. Se recomienda una estructura plana para evitar descargas masivas de datos y asegurar un rendimiento óptimo.</p>
+            <p>Ejemplo de estructura:</p>
+            <pre><code>{
+  "users": {
+    "user_id_1": {
+      "name": "Alice",
+      "email": "alice@example.com"
+    },
+    "user_id_2": {
+      "name": "Bob",
+      "email": "bob@example.com"
+    }
+  }
+}</code></pre>
+        </section>
+
+        <hr>
+
+        <section id="componentes" class="section">
+            <h2>Componentes Esenciales de Android</h2>
+            <p>Los componentes esenciales de Android son los bloques fundamentales de tu aplicación. Comprender cómo interactúan y se comportan es crucial para construir apps estables y eficientes.</p>
+            <p>---</p>
+            <h3>Ciclo de vida de una Actividad</h3>
+            <p>Una <code>Activity</code> es el componente de una aplicación que proporciona una única pantalla con la que los usuarios pueden interactuar. Su ciclo de vida es una serie de estados por los que pasa desde que se lanza hasta que se destruye. Gestionar estos estados correctamente es vital para evitar errores, fugas de memoria y para que la aplicación se comporte de manera predecible. </p>
+            <p><strong>Estados clave del ciclo de vida:</strong></p>
+            <ul>
+                <li><code>onCreate()</code>: El primer método que se llama. Úsalo para la configuración inicial, como inflar el layout y vincular vistas. Solo se llama una vez.</li>
+                <li><code>onStart()</code>: La actividad se vuelve visible para el usuario. Es un buen momento para iniciar recursos necesarios para la interfaz de usuario.</li>
+                <li><code>onResume()</code>: La actividad está en primer plano y el usuario puede interactuar con ella. Es el estado principal.</li>
+                <li><code>onPause()</code>: La actividad pierde el foco pero sigue siendo parcialmente visible. En este estado, debes liberar recursos no esenciales, como detener animaciones.</li>
+                <li><code>onStop()</code>: La actividad ya no es visible. Libera la mayoría de los recursos del sistema para evitar consumir memoria.</li>
+                <li><code>onDestroy()</code>: La actividad se está destruyendo. Este es el último método llamado y debes liberar todos los recursos restantes.</li>
+            </ul>
+            <p>---</p>
+            <h3>Clases esenciales de Kotlin</h3>
+            <ul>
+                <li><code>Sealed Class</code> Representa una jerarquía de herencia restringida. Permite modelar estados finitos de manera segura, como los posibles resultados de una operación de red.</li>
+            </ul>
+            <pre><code>sealed class Result {
+    data class Success(val data: String) : Result()
+    data class Error(val message: String) : Result()
+    object Loading : Result()
+}</code></pre>
+            <ul>
+                <li><code>Data Class</code>: Clases diseñadas para contener datos. El compilador genera automáticamente métodos como `equals()`, `hashCode()` y `toString()`, reduciendo el código repetitivo.</li>
+            </ul>
+            <pre><code>data class User(val name: String, val email: String)
+
+val user1 = User("Alice", "alice@example.com")
+val user2 = user1.copy(name = "Bob") // Crea una copia con un cambio</code></pre>
+            <ul>
+                <li><code>Objetos (`object`)</code>: Crea una clase con una única instancia (patrón Singleton). Son perfectos para definir constantes o funcionalidades compartidas.</li>
+            </ul>
+            <pre><code>// Objeto para constantes de la aplicación
+object Constants {
+    const val API_KEY = "tu_api_key_aqui"
+}
+
+// Un objeto puede tener funciones también
+object Utility {
+    fun log(message: String) {
+        println("Log: $message")
+    }
+}</code></pre>
+            <ul>
+                <li><code>Herencia</code>: Las clases en Kotlin son <code>final</code> por defecto. Para permitir la herencia, debes marcar la clase con la palabra clave <code>open</code>.</li>
+            </ul>
+            <pre><code>open class Shape {
+    open fun area(): Double = 0.0
+}
+
+class Circle(val radius: Double) : Shape() {
+    override fun area(): Double = Math.PI * radius * radius
+}</code></pre>
+            <p>---</p>
+            <h3>Funciones en Kotlin</h3>
+            <p>Una <code>función</code> es un bloque de código que realiza una tarea específica. Se definen con la palabra clave <code>fun</code>. Las funciones pueden recibir parámetros y devolver un valor, o no devolver nada (<code>Unit</code> por defecto). La sintaxis concisa de Kotlin permite escribir funciones de una sola línea de manera muy eficiente.</p>
+            <pre><code>// Función que recibe dos parámetros y devuelve un Int
+fun sumar(a: Int, b: Int): Int {
+    return a + b
+}
+
+// Función de una sola línea con sintaxis abreviada
+fun restar(a: Int, b: Int) = a - b</code></pre>
+        </section>
+
+        <hr>
+
+        <section id="listas" class="section">
+            <h2>Listas y Navegación</h2>
+            <p>En las aplicaciones Android, es común mostrar grandes colecciones de datos, como listas de productos, correos electrónicos o publicaciones. Dos componentes esenciales te ayudan a lograrlo de manera eficiente: **<code>RecyclerView</code>** para las listas y **Jetpack Navigation** para la navegación entre pantallas.</p>
+            <p>---</p>
+            <h3><code>RecyclerView</code> y su <code>Adapter</code></h3>
+            <p>**<code>RecyclerView</code>** es el componente más flexible y eficiente para mostrar listas de datos en tu app. A diferencia de sus predecesores, **<code>RecyclerView</code>** reutiliza las vistas (los elementos visuales) a medida que el usuario se desplaza, lo que mejora significativamente el rendimiento y el uso de la memoria, especialmente en listas muy largas.</p>
+            <p>Para que **<code>RecyclerView</code>** funcione, necesita un **<code>Adapter</code>**. Piensa en el <code>Adapter</code> como un **puente** entre tu lista de datos (por ejemplo, una lista de objetos <code>User</code>) y las vistas individuales que se muestran en pantalla. El <code>Adapter</code> se encarga de:</p>
+            <ul>
+                <li>**Crear los elementos de la lista:** <code>onCreateViewHolder()</code>.</li>
+                <li>**Vincular los datos a las vistas:** <code>onBindViewHolder()</code>.</li>
+                <li>**Contar cuántos elementos hay:** <code>getItemCount()</code>.</li>
+            </ul>
+            <pre><code>// Ejemplo de un Adapter moderno para RecyclerView
+class UserAdapter(private val users: List<User>) :
+    RecyclerView.Adapter&lt;UserAdapter.UserViewHolder>() {
+
+    // 1. Infla el layout de cada elemento de la lista
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): UserViewHolder {
+        val view = LayoutInflater.from(parent.context)
+            .inflate(R.layout.item_user, parent, false)
+        return UserViewHolder(view)
+    }
+
+    // 2. Vincula los datos de un usuario a las vistas del elemento
+    override fun onBindViewHolder(holder: UserViewHolder, position: Int) {
+        val user = users[position]
+        holder.nameTextView.text = user.name
+        holder.emailTextView.text = user.email
+    }
+
+    // 3. Devuelve el número total de elementos en la lista
+    override fun getItemCount(): Int = users.size
+
+    // Clase interna que contiene las vistas de cada elemento de la lista
+    class UserViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        val nameTextView: TextView = itemView.findViewById(R.id.name_text_view)
+        val emailTextView: TextView = itemView.findViewById(R.id.email_text_view)
+    }
+}</code></pre>
+            <p>---</p>
+            <h3>Manejo de Listas Dinámicas</h3>
+            <p>Las listas cambian. Los usuarios pueden agregar nuevos elementos, eliminar los existentes o modificar datos. Para que **<code>RecyclerView</code>** refleje estos cambios de manera eficiente y con animaciones fluidas, debes usar los métodos de notificación del <code>Adapter</code>, como <code>notifyItemInserted()</code>, <code>notifyItemRemoved()</code> o <code>notifyDataSetChanged()</code>.</p>
+            <p>Una práctica recomendada es usar la librería **<code>DiffUtil</code>**, que calcula la diferencia entre dos listas y actualiza solo los elementos que han cambiado, lo que optimiza el rendimiento y proporciona animaciones predeterminadas.</p>
+            <pre><code>// Ejemplo de cómo actualizar una lista de forma eficiente con DiffUtil
+fun updateUsers(newUsers: List<User>) {
+    val diffResult = DiffUtil.calculateDiff(UserDiffCallback(this.users, newUsers))
+    this.users = newUsers
+    diffResult.dispatchUpdatesTo(this) // Aplica las actualizaciones
+}</code></pre>
+            <p>---</p>
+            <h3>Navegación entre Pantallas con Jetpack Navigation</h3>
+            <p><strong>Jetpack Navigation</strong> es una librería que simplifica la navegación en tu aplicación, permitiéndote moverte entre pantallas (Actividades o, más comúnmente, Fragmentos) de forma segura y predecible. La navegación se gestiona a través de un **gráfico de navegación** (<code>nav_graph.xml</code>) que define todas las rutas posibles.</p>
+            <ul>
+                <li>**Acciones**: En el gráfico, defines las acciones (<code>&lt;action></code>) que enlazan una pantalla con otra.</li>
+                <li>**Argumentos seguros**: Jetpack Navigation permite pasar datos entre pantallas de manera segura, evitando errores comunes de tiempo de ejecución.</li>
+            </ul>
+            <p>Para navegar de una pantalla a otra, simplemente llamas al <code>NavController</code> y le indicas la acción a ejecutar.</p>
+            <pre><code>// Ejemplo de cómo navegar de un fragmento a otro
+// 1. Obtener el NavController
+val navController = findNavController()
+
+// 2. Navegar a otra pantalla usando una acción
+// (La acción 'action_home_to_detail' se define en el gráfico de navegación)
+navController.navigate(R.id.action_home_to_detail)</code></pre>
+        </section>
+
+    </main>
+
+    <footer class="footer">
+        <p>© 2025 Documentación Android Por Anthony Barrera</p>
+    </footer>
+
+</body>
+</html>
